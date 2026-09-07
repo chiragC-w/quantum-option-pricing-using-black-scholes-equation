@@ -1,19 +1,14 @@
 """Quantum Amplitude Estimation (IAE) European call pricer — Qiskit.
 
 This is the companion module implementing the paper's actual core
-contribution: pricing via the operator A = F o P_X (Sec. 3, "Circuit Design
-and Methodology") run through Iterative Amplitude Estimation, following the
-Sec. 4 ("Implementation in Qiskit") Steps 2 and 4-9 exactly as given (those
-code blocks are kept read-only elsewhere; this module re-derives the same
-math independently inside a validated, dynamic-input OOP wrapper).
+contribution: pricing via the operator A = F o P_X run through 
+Iterative Amplitude Estimation.
 
-It also reproduces the Sec. 5/6 empirical claim: CMC error ~ O(1/sqrt(N))
+It also reproduces the empirical claim: CMC error ~ O(1/sqrt(N))
 vs IAE error ~ O(1/N), benchmarked against the closed-form Black-Scholes
-price from ``option_engine.EuropeanOption`` (the same role ``exact_price``
-plays in the paper's Step 3).
+price from ``option_engine.EuropeanOption``.
 
-Dependency note (see README): qiskit-finance 0.4.1 (its last release) is
-NOT compatible with qiskit>=1.0. This module requires the pinned stack:
+Dependency note: requires the pinned stack:
     qiskit==0.45.3  qiskit-aer==0.13.3
     qiskit-algorithms==0.2.2  qiskit-finance==0.4.1
 """
@@ -36,16 +31,7 @@ from option_engine import EuropeanOption, OptionType
 
 @dataclass
 class QAEResult:
-    """Outcome of one Iterative Amplitude Estimation run.
-
-    Attributes:
-        price: QAE-estimated option price.
-        oracle_queries: Number of Grover-oracle calls IAE used (its
-            "sample count" analog to classical N).
-        epsilon_target: Target error on the rescaled amplitude that was
-            requested.
-        num_uncertainty_qubits: Qubits used for the asset-price grid.
-    """
+    """Outcome of one Iterative Amplitude Estimation run."""
     price: float
     oracle_queries: int
     epsilon_target: float
@@ -53,35 +39,7 @@ class QAEResult:
 
 
 class QAEOptionPricer:
-    """European **call** pricer via Iterative Amplitude Estimation.
-
-    Mirrors ``EuropeanOption``'s dynamic market-input contract (S0, K, r,
-    sigma, T, q), but prices by loading the risk-neutral log-normal
-    terminal-price distribution into a quantum state (``LogNormalDistribution``,
-    Sec. 4 Step 4), encoding the payoff via controlled rotations
-    (``EuropeanCallPricing``, Step 5), and estimating the resulting
-    amplitude with IAE (Step 6) instead of a closed form.
-
-    Only vanilla calls are supported: Qiskit Finance's ``EuropeanCallPricing``
-    has no put variant. Price a put via put-call parity using
-    :meth:`put_price_via_parity`.
-
-    Args:
-        S0: Spot price. Must be > 0.
-        K: Strike price. Must be > 0.
-        r: Risk-free rate.
-        sigma: Volatility. Must be > 0 (IAE needs a non-degenerate
-            distribution to load; use ``EuropeanOption`` for the sigma=0
-            or T=0 analytical limits).
-        T: Time to maturity in years. Must be > 0.
-        q: Continuous dividend yield. Default 0.
-        num_uncertainty_qubits: Qubits for the asset-price grid (2^n grid
-            points). Sec. 6.4: n=3 is shallow but has visible
-            discretization error; n=5 reduces that error at the cost of a
-            deeper circuit.
-        rescaling_factor: Slope of the linear payoff approximation
-            (Step 5); controls the payoff-encoding approximation error.
-    """
+    """European **call** pricer via Iterative Amplitude Estimation."""
 
     def __init__(
         self,
@@ -100,7 +58,6 @@ class QAEOptionPricer:
         self._validate()
 
     def update(self, **kwargs) -> "QAEOptionPricer":
-        """Apply real-time market updates. Returns self (chainable)."""
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise ValueError(f"Unknown field '{key}'")
@@ -120,7 +77,6 @@ class QAEOptionPricer:
             raise ValueError("num_uncertainty_qubits must be in [1, 8] for simulator feasibility")
 
     def _build_problem(self):
-        """Constructs the distribution-loading + payoff operator (Sec. 3/4 Steps 2, 4, 5)."""
         mu = (self.r - self.q - 0.5 * self.sigma ** 2) * self.T + np.log(self.S0)
         sigma_bs = self.sigma * np.sqrt(self.T)
         mean = np.exp(mu + sigma_bs ** 2 / 2)
@@ -141,15 +97,6 @@ class QAEOptionPricer:
         return pricer, pricer.to_estimation_problem()
 
     def price(self, epsilon_target: float = 0.01, alpha: float = 0.05) -> QAEResult:
-        """Runs IAE once (Sec. 4 Step 6) and returns the price estimate.
-
-        Args:
-            epsilon_target: Target error on the rescaled amplitude.
-            alpha: 1 - confidence level (default: 95% CI).
-
-        Returns:
-            A ``QAEResult``.
-        """
         pricer, problem = self._build_problem()
         iae = IterativeAmplitudeEstimation(epsilon_target=epsilon_target, alpha=alpha, sampler=Sampler())
         result = iae.estimate(problem)
@@ -161,20 +108,10 @@ class QAEOptionPricer:
         )
 
     def put_price_via_parity(self, epsilon_target: float = 0.01, alpha: float = 0.05) -> float:
-        """European put price via put-call parity applied to the QAE call estimate.
-
-        Put = Call - S0*e^(-qT) + K*e^(-rT). Not part of the paper's circuit;
-        a standard analytical bridge since EuropeanCallPricing is call-only.
-        """
         call = self.price(epsilon_target, alpha).price
         return call - self.S0 * np.exp(-self.q * self.T) + self.K * np.exp(-self.r * self.T)
 
     def cross_validate(self, epsilon_target: float = 0.01) -> pd.Series:
-        """Compares this QAE call estimate against the analytical Black-Scholes price.
-
-        Returns:
-            Series with qae_price, analytical_price, abs_error, pct_error.
-        """
         qae = self.price(epsilon_target)
         analytical = EuropeanOption(self.S0, self.K, self.r, self.sigma, self.T, self.q, OptionType.CALL).price()
         return pd.Series({
@@ -186,23 +123,10 @@ class QAEOptionPricer:
         })
 
 
-# ---------------------------------------------------------------------- #
-# Classical Monte Carlo baseline (Sec. 4 Step 7 formula, reimplemented)
-# ---------------------------------------------------------------------- #
 def classical_monte_carlo_price(
     S0: float, K: float, r: float, sigma: float, T: float, N: int,
     rng: Optional[np.random.Generator] = None, q: float = 0.0,
 ) -> tuple[float, float]:
-    """Classical Monte Carlo European call estimate (CMC baseline, Sec 4 Step 7).
-
-    Args:
-        S0, K, r, sigma, T, q: market inputs.
-        N: number of sample paths.
-        rng: optional numpy Generator for reproducibility.
-
-    Returns:
-        (price_estimate, standard_error) tuple.
-    """
     rng = rng or np.random.default_rng()
     Z = rng.standard_normal(N)
     S_T = S0 * np.exp((r - q - 0.5 * sigma ** 2) * T + sigma * np.sqrt(T) * Z)
@@ -217,22 +141,6 @@ def convergence_comparison(
     num_uncertainty_qubits: int = 3,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Reproduces the Sec. 5/6 CMC-vs-IAE convergence comparison (Step 8/9).
-
-    Sweeps IAE over a range of target precisions and CMC over a range of
-    sample sizes, measuring each method's absolute error against the exact
-    Black-Scholes price (the same role ``exact_price`` plays in the paper).
-
-    Args:
-        S0, K, r, sigma, T: market inputs.
-        epsilon_targets: IAE target errors to sweep (default: logspace -1..-2, 5 pts).
-        sample_sizes: CMC sample sizes to sweep (default: logspace 2..6, 10 pts).
-        num_uncertainty_qubits: qubits for the QAE distribution grid.
-        seed: RNG seed for CMC reproducibility.
-
-    Returns:
-        DataFrame with columns [method, queries, error], one row per run.
-    """
     epsilon_targets = epsilon_targets or list(np.logspace(-1, -2, num=5))
     sample_sizes = sample_sizes or list(np.logspace(2, 6, num=10, dtype=int))
 
@@ -252,19 +160,42 @@ def convergence_comparison(
     return pd.DataFrame(rows)
 
 
+def _prompt_float(prompt_text: str, min_value: Optional[float] = None) -> float:
+    """Robust CLI helper that retries until a valid float is entered."""
+    while True:
+        raw_input = input(prompt_text).strip()
+        if not raw_input:
+            print("  [!] Input required. Please enter a numerical value.")
+            continue
+        try:
+            val = float(raw_input)
+            if min_value is not None and val < min_value:
+                print(f"  [!] Value must be >= {min_value}. Try again.")
+                continue
+            return val
+        except ValueError:
+            print("  [!] Invalid input. Please enter a valid number (e.g. 100 or 0.05).")
+
+
 if __name__ == "__main__":
-    S0, K, r, sigma, T = 100.0, 105.0, 0.05, 0.20, 40 / 365
+    print("==========================================================")
+    print(" Quantum Amplitude Estimation (IAE) Option Pricer")
+    print("==========================================================")
+    print("Enter the required stock & market inputs:\n")
 
-    print("--- Single QAE call price + cross-validation vs analytical ---")
+    S0 = _prompt_float("1. Stock Price (S0, e.g. 100.0): ", min_value=0.0001)
+    K = _prompt_float("2. Strike Price (K, e.g. 105.0): ", min_value=0.0001)
+    r = _prompt_float("3. Risk-Free Rate (r, e.g. 0.05 for 5%): ")
+    sigma = _prompt_float("4. Volatility (sigma, e.g. 0.20 for 20%): ", min_value=0.0001)
+    T = _prompt_float("5. Time to Maturity in Years (T, e.g. 0.1095 for 40 days): ", min_value=0.0001)
+
+    print("\n--- Single QAE call price + cross-validation vs analytical ---")
     pricer = QAEOptionPricer(S0, K, r, sigma, T, num_uncertainty_qubits=3)
-    print(pricer.cross_validate())
-
-    print("\n--- Dynamic market update -> instant re-price ---")
-    pricer.update(S0=102, sigma=0.25)
-    print(pricer.cross_validate())
+    print(pricer.cross_validate().to_string())
 
     print("\n--- CMC vs IAE convergence comparison (Sec. 5/6) ---")
+    print("Simulating across multiple target precisions and sample sizes...")
     t0 = time.time()
-    df = convergence_comparison(100.0, 105.0, 0.05, 0.20, 40 / 365)
+    df = convergence_comparison(S0, K, r, sigma, T)
     print(df.to_string())
     print(f"(elapsed {time.time() - t0:.1f}s)")

@@ -1,16 +1,11 @@
 """European option pricing engine (Black-Scholes-Merton analytics).
 
 Implements the closed-form pricing model and exact analytical Greeks that
-follow from the Geometric Brownian Motion solution derived in the source
-paper (Sec. 7, "Derivation and Integration of stochastic differential"):
+follow from the Geometric Brownian Motion solution:
 
-    S_T = S_0 * exp[(r - q - sigma**2/2) * T + sigma * W_T]   (risk-neutral drift)
-
-which gives ln(S_T) ~ N(ln(S0) + (r - q - sigma**2/2) T, sigma**2 T), the
-same log-normal law used in Sec. 4's ``black_scholes_call`` reference
-snippet (extended here with a continuous dividend yield q).
-
-Author: engine built for Chirag M.
+    S_T = S_0 * exp[(r - q - sigma**2/2) * T + sigma * W_T]
+!letters are case sensitive!
+Author: Chirag M.
 """
 
 from __future__ import annotations
@@ -26,7 +21,7 @@ import pandas as pd
 from scipy.stats import norm
 
 _MIN_T = 1e-8          # below this, treat as expired (avoid div-by-zero)
-_MIN_SIGMA = 1e-8      # below this, treat as zero-volatility (deterministic) limit
+_MIN_SIGMA = 1e-8      # below this, treat as zero-volatility limit
 
 
 class OptionType(str, Enum):
@@ -37,19 +32,7 @@ class OptionType(str, Enum):
 
 @dataclass
 class Greeks:
-    """Container for the five analytical Greeks.
-
-    Attributes:
-        delta: Sensitivity of price to a $1 move in spot.
-        gamma: Sensitivity of delta to a $1 move in spot.
-        vega: Sensitivity of price to a 1.00 (100%) change in volatility
-            (divide by 100 for a per-1%-point figure).
-        theta: Sensitivity of price to the passage of one year of time
-            (negative = value decays as T shrinks); divide by 365 for
-            per-calendar-day decay.
-        rho: Sensitivity of price to a 1.00 (100%) change in the risk-free
-            rate (divide by 100 for a per-1%-point figure).
-    """
+    """Container for the five analytical Greeks."""
     delta: float
     gamma: float
     vega: float
@@ -61,25 +44,7 @@ class Greeks:
 
 
 class EuropeanOption:
-    """A European vanilla option priced under Black-Scholes-Merton.
-
-    Holds a live set of market/contract inputs (S0, K, r, sigma, T, q) that
-    can be mutated at any time via ``update()``; every read (price/greeks)
-    recomputes from the current state, so the engine behaves correctly
-    under continuous, real-time market data feeds.
-
-    Args:
-        S0: Spot price of the underlying. Must be > 0.
-        K: Strike price. Must be > 0.
-        r: Continuously-compounded risk-free rate (e.g. 0.05 for 5%).
-        sigma: Annualized volatility (e.g. 0.20 for 20%). Must be >= 0.
-        T: Time to maturity in years. Must be >= 0.
-        q: Continuous dividend yield (e.g. 0.02 for 2%). Default 0.
-        option_type: ``OptionType.CALL`` or ``OptionType.PUT``.
-
-    Raises:
-        ValueError: If any input violates its domain constraint.
-    """
+    """A European vanilla option priced under Black-Scholes-Merton."""
 
     def __init__(
         self,
@@ -100,21 +65,8 @@ class EuropeanOption:
         self.option_type = OptionType(option_type)
         self._validate()
 
-    # ------------------------------------------------------------------ #
-    # Dynamic input handling
-    # ------------------------------------------------------------------ #
     def update(self, **kwargs) -> "EuropeanOption":
-        """Apply one or more real-time market updates and re-validate.
-
-        Args:
-            **kwargs: Any of S0, K, r, sigma, T, q, option_type.
-
-        Returns:
-            self, so calls can be chained: ``opt.update(S0=101).price()``.
-
-        Raises:
-            ValueError: On an unknown field or an invalid resulting state.
-        """
+        """Apply market updates dynamically and re-validate."""
         valid_fields = {"S0", "K", "r", "sigma", "T", "q", "option_type"}
         for key, value in kwargs.items():
             if key not in valid_fields:
@@ -135,15 +87,11 @@ class EuropeanOption:
         if not math.isfinite(self.r):
             raise ValueError(f"Risk-free rate r must be finite, got {self.r}")
         if abs(self.r) > 2.0:
-            raise ValueError(f"Risk-free rate r={self.r} is outside a sane [-200%, 200%] range")
+            raise ValueError(f"Risk-free rate r={self.r} is outside [-200%, 200%] range")
         if self.sigma > 5.0:
-            raise ValueError(f"Volatility sigma={self.sigma} is outside a sane [0, 500%] range")
+            raise ValueError(f"Volatility sigma={self.sigma} is outside [0, 500%] range")
 
-    # ------------------------------------------------------------------ #
-    # Core math
-    # ------------------------------------------------------------------ #
     def _is_degenerate(self) -> bool:
-        """True at/near expiration or zero volatility, where d1/d2 blow up."""
         return self.T <= _MIN_T or self.sigma <= _MIN_SIGMA
 
     def _d1_d2(self) -> tuple[float, float]:
@@ -153,17 +101,11 @@ class EuropeanOption:
         return d1, d2
 
     def _intrinsic(self) -> float:
-        """Discounted intrinsic value: the degenerate-case (T->0 or sigma->0) price."""
         fwd = self.S0 * math.exp((self.r - self.q) * self.T)
         payoff = max(fwd - self.K, 0.0) if self.option_type == OptionType.CALL else max(self.K - fwd, 0.0)
         return math.exp(-self.r * self.T) * payoff
 
     def price(self) -> float:
-        """Analytical Black-Scholes-Merton price.
-
-        Returns:
-            The fair value of the option under the risk-neutral measure.
-        """
         if self._is_degenerate():
             return self._intrinsic()
         d1, d2 = self._d1_d2()
@@ -174,15 +116,6 @@ class EuropeanOption:
         return self.K * disc_r * norm.cdf(-d2) - self.S0 * disc_q * norm.cdf(-d1)
 
     def greeks(self) -> Greeks:
-        """Exact analytical Greeks (Delta, Gamma, Vega, Theta, Rho).
-
-        In the degenerate limits (T -> 0 or sigma -> 0) these collapse to
-        their well-defined boundary values (e.g. Delta -> 0/1 indicator,
-        Gamma/Vega -> 0) rather than raising a divide-by-zero error.
-
-        Returns:
-            A ``Greeks`` dataclass instance.
-        """
         disc_q = math.exp(-self.q * self.T)
         disc_r = math.exp(-self.r * self.T)
         is_call = self.option_type == OptionType.CALL
@@ -220,36 +153,27 @@ class EuropeanOption:
         return Greeks(delta=delta, gamma=gamma, vega=vega, theta=theta, rho=rho)
 
     def summary(self) -> pd.Series:
-        """Single-row summary of inputs, price, and Greeks.
-
-        Returns:
-            A pandas Series suitable for logging, display, or concatenation
-            into a batch DataFrame.
-        """
         g = self.greeks()
         return pd.Series({
-            "option_type": self.option_type.value,
-            "S0": self.S0, "K": self.K, "r": self.r,
-            "sigma": self.sigma, "T": self.T, "q": self.q,
-            "price": self.price(),
-            **g.as_dict(),
+            "Contract Type": self.option_type.value.upper(),
+            "Stock Price (Spot)": self.S0,
+            "Strike Price": self.K,
+            "Risk-Free Rate (Annual)": self.r,
+            "Volatility (Annual)": self.sigma,
+            "Time to Maturity (Years)": self.T,
+            "Dividend Yield": self.q,
+            "Theoretical Option Price": self.price(),
+            "Price Change per $1 Stock Move": g.delta,
+            "Rate of Change for $1 Stock Move": g.gamma,
+            "Price Change per 1% Volatility Move": g.vega / 100,
+            "Value Decay per 1 Day": g.theta / 365,
+            "Price Change per 1% Rate Move": g.rho / 100,
         })
 
 
 class OptionPricingEngine:
-    """Batch/portfolio-level wrapper around :class:`EuropeanOption`."""
-
     @staticmethod
     def price_portfolio(rows: list[dict]) -> pd.DataFrame:
-        """Price a batch of contracts in one call.
-
-        Args:
-            rows: List of dicts, each with keys S0, K, r, sigma, T and
-                optionally q (default 0.0) and option_type (default "call").
-
-        Returns:
-            A DataFrame with one row per contract: inputs, price, Greeks.
-        """
         records = []
         for row in rows:
             opt = EuropeanOption(
@@ -260,32 +184,77 @@ class OptionPricingEngine:
         return pd.DataFrame(records)
 
 
-# ---------------------------------------------------------------------- #
-# CLI: interactive real-time adjustment loop
-# ---------------------------------------------------------------------- #
-def _repl() -> None:
-    print("European Option Engine — interactive mode. Ctrl+C to exit.")
-    S0 = float(input("S0 (spot): "))
-    K = float(input("K (strike): "))
-    r = float(input("r (risk-free, e.g. 0.05): "))
-    sigma = float(input("sigma (vol, e.g. 0.2): "))
-    T = float(input("T (years, e.g. 40/365): "))
-    q = float(input("q (dividend yield, default 0): ") or 0.0)
-    opt_type = input("type (call/put) [call]: ").strip().lower() or "call"
-
-    opt = EuropeanOption(S0, K, r, sigma, T, q, OptionType(opt_type))
+def _prompt_float(
+    prompt_text: str, 
+    default: Optional[float] = None, 
+    min_value: Optional[float] = None
+) -> float:
+    """Robust CLI helper that retries until a valid float is entered."""
     while True:
-        print(opt.summary().to_string())
-        cmd = input("\nUpdate a field as name=value (e.g. sigma=0.25), or 'quit': ").strip()
+        raw_input = input(prompt_text).strip()
+        if not raw_input:
+            if default is not None:
+                return default
+            print("  [!] Input required. Please enter a numerical value.")
+            continue
+        try:
+            val = float(raw_input)
+            if min_value is not None and val < min_value:
+                print(f"  [!] Value must be >= {min_value}. Try again.")
+                continue
+            return val
+        except ValueError:
+            print("  [!] Invalid input. Please enter a valid number (e.g. 100 or 0.05).")
+
+
+def _repl() -> None:
+    print("==========================================================")
+    print(" European Option Pricing Engine — Interactive Market Mode")
+    print("==========================================================")
+    print("Enter the required stock & market inputs:\n")
+
+    S0 = _prompt_float("1. Stock Price (S0, e.g. 100.0): ", min_value=0.0001)
+    K = _prompt_float("2. Strike Price (K, e.g. 100.0): ", min_value=0.0001)
+    r = _prompt_float("3. Risk-Free Rate (r, e.g. 0.05 for 5%): ")
+    sigma = _prompt_float("4. Volatility (sigma, e.g. 0.20 for 20%): ", min_value=0.0)
+    T = _prompt_float("5. Time to Maturity in Years (T, e.g. 0.5 for 6 months): ", min_value=0.0)
+    q = _prompt_float("6. Dividend Yield (q, default 0.0): ", default=0.0)
+
+    while True:
+        opt_type_raw = input("7. Option Type (call/put) [default: call]: ").strip().lower() or "call"
+        if opt_type_raw in ("call", "put"):
+            opt_type = OptionType(opt_type_raw)
+            break
+        print("  [!] Please type 'call' or 'put'.")
+
+    opt = EuropeanOption(S0=S0, K=K, r=r, sigma=sigma, T=T, q=q, option_type=opt_type)
+
+    print("\n---------------- Initial Calculated Output ----------------")
+    print(opt.summary().to_string())
+    print("-----------------------------------------------------------\n")
+
+    while True:
+        cmd = input("Update parameters (e.g. S0=105 or sigma=0.25), or 'quit': ").strip()
         if cmd.lower() in ("quit", "exit", "q"):
             break
+        if not cmd:
+            continue
+            
         try:
-            field, value = cmd.split("=")
+            if "=" not in cmd:
+                raise ValueError("Format must include an '=' sign (e.g., S0=102)")
+                
+            field, value = cmd.split("=", 1)
             field = field.strip()
             value = value.strip()
-            opt.update(**{field: OptionType(value) if field == "option_type" else float(value)})
-        except Exception as exc:  # noqa: BLE001 - surfaced directly to the CLI user
-            print(f"Invalid input: {exc}")
+            parsed_val = OptionType(value.lower()) if field == "option_type" else float(value)
+            
+            opt.update(**{field: parsed_val})
+            print("\n---------------- Updated Calculated Output ----------------")
+            print(opt.summary().to_string())
+            print("-----------------------------------------------------------\n")
+        except ValueError as exc:
+            print(f"  [!] Failed to update: {exc}\n")
 
 
 def main() -> None:
