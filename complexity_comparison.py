@@ -45,7 +45,7 @@ if __name__ == "__main__":
     print(f"Exact Black-Scholes price: {exact_price:.4f}\n")
 
     # ---------------------------------------------------------------------- #
-    # CMC sweep: vary sample size N, time each run individually
+    # CMC sweep: vary sample size N, time every run individually.
     # ---------------------------------------------------------------------- #
     print("--- Running Classical Monte Carlo (CMC) Sweep ---")
     sample_sizes = np.logspace(2, 6, num=8, dtype=int)
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         print(f"CMC  N={N:>9,d}  error={cmc_rows[-1]['error']:.5f}  time={elapsed:.4f}s")
 
     # ---------------------------------------------------------------------- #
-    # IAE sweep: vary epsilon_target, time each run individually
+    # IAE sweep: vary epsilon_target, time all the runs individually.
     # ---------------------------------------------------------------------- #
     print("\n--- Running Iterative Amplitude Estimation (IAE) Sweep ---")
     epsilon_targets = np.logspace(-1, -2.3, num=8)
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     print("Saved complexity_comparison.png successfully.")
 
     # ---------------------------------------------------------------------- #
-    # Analytical Conclusion Output
+    # Analytical Conclusion
     # ---------------------------------------------------------------------- #
     total_cmc_time = sum(cmc_t)
     total_iae_time = sum(iae_t)
