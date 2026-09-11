@@ -3,24 +3,24 @@
 A dual-engine European option pricing toolkit built to validate and benchmark the method proposed in:
 
 > Chirag M, Suryaansh S. **"Option Pricing with Qiskit Simulations."** Department of Computer Science and Engineering, BMSIT&M / MITB.
-> See [`Option Pricing via Quantum estimation with Qiskit Simulations.pdf`](./Option\ Pricing\ via\ Quantum\ estimation\ with\ Qiskit\ Simulations.pdf) for the original submission (as authored).
+> See [`Option Pricing via Quantum estimation with Qiskit Simulations.pdf`] for the original submission (as authored).
 
-It contains **two independent pricing engines** for a vanilla European option — an exact closed-form analytical engine and a quantum Iterative Amplitude Estimation (IAE) engine — plus scripts that benchmark them against each other and against real market data.
+It contains **two independent pricing engines** for a vanilla European option which is an exact closed-form analytical engine and a quantum Iterative Amplitude Estimation (IAE) engine and scripts that benchmark them against each other and against real market data.
 
 ## Contents
 
 | File | Purpose |
 |---|---|
-| `option_engine.py` | Analytical Black-Scholes-Merton engine — closed-form price + exact Greeks (Δ, Γ, ν, Θ, ρ), used as ground truth. |
-| `qae_pricer.py` | Quantum pricer using Qiskit's Iterative Amplitude Estimation (IAE) — the paper's actual core method — plus a classical Monte Carlo (CMC) baseline for comparison. |
-| `complexity_comparison.py` | Runs both engines across a range of precision targets and plots CMC vs. IAE on two separate panels: theoretical query/sample complexity, and measured wall-clock time. |
+| `option_engine.py` | Analytical Black-Scholes-Merton engine: closed-form price and Greek letters (Δ, Γ, ν, Θ, ρ), used as ground truth. |
+| `qae_pricer.py` | Quantum pricer using Qiskit's Iterative Amplitude Estimation (IAE) which is the paper's actual core method and a classical Monte Carlo (CMC) baseline for comparison. |
+| `complexity_comparison.py` | Runs both engines across a range of precision targets and plots [CMC vs. IAE] on two separate panels: theoretical query/sample complexity, and measured wall-clock time. |
 | `real_world_validation.py` | Feeds both engines genuine AAPL market data and checks the Black-Scholes/GBM normality assumption and cross-engine agreement against it (not a synthetic test case). |
 | `requirements.txt` | Pinned, verified-working dependency versions. |
 | `Option Pricing via Quantum estimation with Qiskit Simulations.pdf` | The original submitted paper, **"Option Pricing with Qiskit Simulations."** |
 
-## Why Two Engines?
+## Why need Two Engines?
 
-Black-Scholes has a closed-form solution, so there's no real need to price a vanilla European option quantumly — the value here is in **validating the paper's quantum method against a known-correct answer** and **honestly measuring what it costs today**, not in using it for actual pricing. `option_engine.py` supplies that known-correct answer; `qae_pricer.py` is the thing being tested.
+Black-Scholes has a closed-form solution, so there's no real need to price a vanilla European option quantumly and the value here is in **validating the paper's quantum method against a known-correct answer** and **honestly measuring what it costs today**, not in using it for actual pricing. `option_engine.py` supplies that known-correct answer so `qae_pricer.py` is the thing being tested.
 
 ## Theoretical Background
 
@@ -35,32 +35,29 @@ Black-Scholes has a closed-form solution, so there's no real need to price a van
   ```
 
 - The paper's **Section 4, Step 7** (Classical Monte Carlo) independently confirms the same log-normal terminal-price sampler; `qae_pricer.py`'s `classical_monte_carlo_price()` reimplements it as the CMC baseline used throughout.
-- Greeks (Δ, Γ, ν, Θ, ρ) are the exact partial derivatives of the closed-form price w.r.t. S0, σ, T, and r respectively — see `option_engine.py` docstrings for the closed forms.
+- Greeks (Δ, Γ, ν, Θ, ρ) are the exact partial derivatives of the closed-form price w.r.t. S0, σ, T, and r respectively. See `option_engine.py` docstrings for the closed forms.
 
 ## Installation
 
-**⚠️ Important Note for GitHub Users:** 
-Please ensure that you download the pre-packaged uploaded interpreter and the required models contained within the `.venv` and `qenv` files uploaded to this GitHub repository. Utilizing these provided environment files ensures that all complex quantum dependencies and model structures are correctly aligned.
+Please ensure that you download the pre-packaged uploaded interpreter and the required models contained within the `.venv` and `qenv` files uploaded to this GitHub repository which is inside the zip file. Utilizing these provided environment files ensures that all complex quantum dependencies and model structures are correctly aligned.
 
-**Recommended: Python 3.12.** With no real quantum computer in the loop, every "quantum" circuit here is simulated via classical matrix algebra (Qiskit Aer's statevector/shot simulator) — this is genuinely CPU-bound linear algebra, not lightweight scripting, so a modern, fast Python build matters more than it would for typical Python code. Python 3.12 is the best-supported choice for this stack: it's fast enough for Aer's simulation workload, and it's the version this repo's dependency set (below) was verified against.
+**Recommended python version: Python 3.12.** With no real quantum computer in the loop, every "quantum" circuit here is simulated via classical matrix algebra (Qiskit Aer's statevector/shot simulator) and this is the classical way of CPU-bound linear algebra, not lightweight scripting, so a modern, fast Python build matters more than it would for typical Python code. Python 3.12 is the best-supported choice for this stack: it's fast enough for Aer's simulation workload, and it's the version this repo's dependency set (below) was verified against.
 
 ```bash
-git clone <this-repo-url>
+git clone <https://github.com/chiragC-w/quantum-option-pricing-using-black-scholes-equation>
 cd <repo-folder>
 
 # Option 1: Use the uploaded environments (Recommended)
 # Ensure you have downloaded the .venv and qenv folders from the repository and activate:
-source .venv/bin/activate      # Linux/Mac
-# or
 .venv\Scripts\activate         # Windows
 
 # Option 2: Build from scratch (if not using the provided .venv / qenv)
 python3.12 -m venv venv
-source venv/bin/activate
+source venv/bin/activate       #it will be installed in the bin
 pip install -r requirements.txt
 ```
 
-**Dependency note:** `qiskit-finance==0.4.1` (its last release) is **not** compatible with `qiskit>=1.0` — a plain `pip install qiskit qiskit-finance` will resolve to a broken combination (`AerError: unknown instruction: P(X)`). `requirements.txt` pins the exact stack that works:
+**Dependency note:** `qiskit-finance==0.4.1` (its last release) is **not** compatible with `qiskit>=1.0` which is a a plain `pip install qiskit qiskit-finance` will resolve to a broken combination (`AerError: unknown instruction: P(X)`). `requirements.txt` pins the exact stack that works:
 ```
 qiskit==0.45.3
 qiskit-aer==0.13.3
@@ -161,24 +158,25 @@ Vectorized batch pricing; one row of output per input contract dict.
 - `.cross_validate(epsilon_target=0.01)` — `pandas.Series` with `qae_price`, `analytical_price`, `abs_error`, `pct_error`, `oracle_queries`.
 
 ### Module-level functions (`qae_pricer.py`)
-- `classical_monte_carlo_price(S0, K, r, sigma, T, N, rng=None, q=0.0) -> (price_estimate, std_error)` — CMC baseline.
-- `convergence_comparison(S0, K, r, sigma, T, epsilon_targets=None, sample_sizes=None, num_uncertainty_qubits=3, seed=42) -> pandas.DataFrame` — sweeps both methods and reports `[method, queries, error]` per run.
+- `classical_monte_carlo_price(S0, K, r, sigma, T, N, rng=None, q=0.0) -> (price_estimate, std_error)` which are CMC baseline.
+- `convergence_comparison(S0, K, r, sigma, T, epsilon_targets=None, sample_sizes=None, num_uncertainty_qubits=3, seed=42) -> pandas.DataFrame` this sweeps both methods and reports `[method, queries, error]` per run.
 
 ## Relationship to the Paper
 
-- `qae_pricer.py` implements the paper's Section 4 ("Implementation in Qiskit") pipeline — log-normal distribution loading, linear payoff encoding, and Iterative Amplitude Estimation — as a reusable, dynamically-updatable class, rather than a one-off script.
+- `qae_pricer.py` implements the paper's Section 4 ("Implementation in Qiskit") pipeline gives log-normal distribution loading, linear payoff encoding, and Iterative Amplitude Estimation — as a reusable, dynamically-updatable class, rather than a one-off script.
 - `option_engine.py` supplies the "exact price" the paper's own results section compares against, extended with a continuous dividend yield and Greeks not in the original snippets.
-- `complexity_comparison.py` reproduces the paper's Section 5/6 CMC-vs-IAE convergence claim empirically, and additionally separates **theoretical query complexity** from **measured wall-clock time** — the paper's own claimed advantage is in query complexity (O(1/N) vs. O(1/√N)), and this repo's benchmark shows that does **not** currently translate into a wall-clock speedup on a classical simulator (IAE measured meaningfully slower in real time across runs here, despite using far fewer oracle queries).
+- `complexity_comparison.py` reproduces the paper's Section 5/6 CMC-vs-IAE convergence claim empirically, and additionally separates **theoretical query complexity** from **measured wall-clock time**. the paper's own claimed advantage is in query complexity (O(1/N) vs. O(1/√N)), and this repo's benchmark shows that does **not** currently translate into a wall-clock speedup on a classical simulator (IAE measured meaningfully slower in real time across runs here, despite using far fewer oracle queries).
 - `real_world_validation.py` goes one step further: instead of one synthetic test case, it feeds both engines **real AAPL market data** (see below) and checks the paper's core assumptions against it.
 
 ## Real-World Validation (`real_world_validation.py`)
 
 Both engines price under a Black-Scholes / Geometric Brownian Motion assumption: log-returns are normally distributed. This script checks that assumption, and the two engines' agreement, against **genuine market data** rather than a synthetic test case:
 
-- **Data:** 50 real daily AAPL closes, 2026-06-23 to 2026-08-31 ([TipRanks](https://www.tipranks.com/stocks/aapl/historical-prices), pulled 2026-09-01), and the real US 3-month T-bill yield, 3.86% ([TradingEconomics](https://tradingeconomics.com/united-states/3-month-bill-yield), 2026-09-01). Hardcoded in the script for reproducibility — neither source has a free public API.
-- **Check 1 — GBM assumption:** tests AAPL's real daily log-returns for skewness, excess kurtosis, and normality (Jarque-Bera). Over this window, the data **rejects normality at 5% significance** (skew −1.18, excess kurtosis +3.83) — real returns have a fatter left tail than Black-Scholes assumes, a real (if small-sample) illustration of a well-known limitation of the GBM model both engines rely on.
-- **Check 2 — walk-forward model agreement:** for 30 real trading days, prices a 10-day at-the-money call using that day's *real* spot price and *real* trailing 20-day realized volatility, with both engines. Result: **mean 7.95% price disagreement, correlation 0.99** between the quantum and analytical prices — the two engines track each other closely under real, time-varying conditions, with the quantum pricer's `n=3`-qubit discretization producing a consistent small upward bias (matching the pattern already documented in `complexity_comparison.py`'s results).
+- **Data:** 50 real daily AAPL closes, 2026-06-23 to 2026-08-31 ([TipRanks](https://www.tipranks.com/stocks/aapl/historical-prices), pulled 2026-09-01), and the real US 3-month T-bill yield, 3.86% ([TradingEconomics](https://tradingeconomics.com/united-states/3-month-bill-yield), 2026-09-01). Hardcoded in the script for reproducibility but neither source has a free public API.
+- **Check 1 — GBM assumption:** tests AAPL's real daily log-returns for skewness, excess kurtosis, and normality (Jarque-Bera). Over this window, the data **rejects normality at 5% significance** (skew −1.18, excess kurtosis +3.83). Real returns have a fatter left tail than Black-Scholes assumes, a real (if small-sample) illustration of a well-known limitation of the GBM model both engines rely on.
+- **Check 2 — walk-forward model agreement:** for 30 real trading days, prices a 10-day at-the-money call using that day's *real* spot price and *real* trailing 20-day realized volatility, with both engines. Result: **mean 7.95% price disagreement, correlation 0.99** between the quantum and analytical prices. the two engines track each other closely under real, time-varying conditions, with the quantum pricer's `n=3`-qubit discretization producing a consistent small upward bias (matching the pattern already documented in `complexity_comparison.py`'s results).
 - **Deliberately not tested:** a single option price against a single path's realized payoff. That comparison is statistically misleading (an option price is an expectation over many possible paths), so this script avoids it.
+- NOTE: this comparison was done around the time this repository was created.
 
 Outputs: `real_world_validation.png` (price series + walk-forward pricing comparison) and `real_world_validation_results.csv` (full walk-forward data, for independent verification).
 
@@ -186,5 +184,5 @@ Outputs: `real_world_validation.png` (price series + walk-forward pricing compar
 
 - **Analytical engine:** near-zero volatility / at expiration degenerates cleanly to discounted intrinsic value and boundary Greeks (no NaN/inf); non-finite or extreme `r`/`sigma` are rejected with a `ValueError` at construction or update time; `S0`/`K` must be strictly positive, `T`/`sigma` non-negative.
 - **Quantum engine:** `QAEOptionPricer` only supports **calls** directly; puts are obtained via put-call parity. `T`/`sigma` must be strictly positive (no degenerate-limit support — use `EuropeanOption` instead for those cases).
-- IAE at `num_uncertainty_qubits=3` has visible discretization + payoff-approximation error (paper Sec. 6.4); this can dominate over amplitude-estimation shot noise at tight `epsilon_target` values. Use `num_uncertainty_qubits=5` for a more accurate (but deeper, slower) circuit.
-- All quantum results here are from Qiskit Aer's classical simulator, not real quantum hardware.
+- IAE at `num_uncertainty_qubits=3` has visible discretization along with payoff-approximation error (paper Sec. 6.4); this can dominate over amplitude-estimation shot noise at tight `epsilon_target` values. Use `num_uncertainty_qubits=5` for a more accurate (but deeper, slower) circuit.
+- (IMPORTANT) All quantum results here are from Qiskit Aer's classical simulator, not real quantum hardware.
