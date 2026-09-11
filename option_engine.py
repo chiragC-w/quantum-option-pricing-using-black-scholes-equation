@@ -1,11 +1,9 @@
-"""European option pricing engine (Black-Scholes-Merton analytics).
-
+"""
 Implements the closed-form pricing model and exact analytical Greeks that
 follow from the Geometric Brownian Motion solution:
 
     S_T = S_0 * exp[(r - q - sigma**2/2) * T + sigma * W_T]
-!letters are case sensitive!
-Author: Chirag M.
+
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-_MIN_T = 1e-8          # below this, treat as expired (avoid div-by-zero)
+_MIN_T = 1e-8          # below this, treat as expired (avoid ZeroDivisionError)
 _MIN_SIGMA = 1e-8      # below this, treat as zero-volatility limit
 
 
@@ -189,7 +187,7 @@ def _prompt_float(
     default: Optional[float] = None, 
     min_value: Optional[float] = None
 ) -> float:
-    """Robust CLI helper that retries until a valid float is entered."""
+    """CLI helper that retries until a valid float is entered."""
     while True:
         raw_input = input(prompt_text).strip()
         if not raw_input:
