@@ -261,7 +261,3 @@ Outputs: `real_world_validation.png` (price series + walk-forward pricing compar
 * **Quantum engine:** `QAEOptionPricer` only supports **calls** directly; puts are obtained via put-call parity. `T`/`sigma` must be strictly positive (no degenerate-limit support — use `EuropeanOption` instead for those cases).
 * IAE at `num_uncertainty_qubits=3` has visible discretization along with payoff-approximation error (paper Sec. 6.4); this can dominate over amplitude-estimation shot noise at tight `epsilon_target` values. Use `num_uncertainty_qubits=5` for a more accurate (but deeper, slower) circuit.
 * (IMPORTANT) All quantum results here are from Qiskit Aer's classical simulator, not real quantum hardware.
-
-```
-
-
