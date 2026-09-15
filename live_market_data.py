@@ -1,12 +1,4 @@
 """
-live_market_data.py
-
-Drop-in replacement for the hardcoded AAPL price list and hardcoded
-T-bill yield in real_world_validation.py. Pulls fresh data from Yahoo
-Finance (via yfinance) every time it's called, so each run of the
-validation script reflects current market conditions instead of a
-2026-06-23 -> 2026-08-31 snapshot.
-
 Install:
     pip install yfinance --break-system-packages
 
@@ -14,11 +6,11 @@ Usage (inside real_world_validation.py):
 
     from live_market_data import get_aapl_closes, get_tbill_yield
 
-    aapl_df = get_aapl_closes(n_days=50)     # replaces the hardcoded list
+    aapl_df = get_aapl_closes(n_days=50)    
     closes = aapl_df["Close"].tolist()
     dates = aapl_df["Date"].tolist()
 
-    r_free = get_tbill_yield()               # replaces the hardcoded 0.0386
+    r_free = get_tbill_yield()               
 """
 
 from __future__ import annotations
@@ -32,16 +24,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 
 def get_aapl_closes(n_days: int = 50, ticker: str = "AAPL") -> pd.DataFrame:
-    """
-    Pull the most recent n_days of daily closes for `ticker`.
-
-    Returns a DataFrame with columns: Date, Close
-    (newest date last, matching the ascending order the original
-    hardcoded list used).
-
-    Also writes a timestamped snapshot to market_data_cache/ so a run
-    can be reproduced later even though the live source will have moved on.
-    """
+  
     # Pull extra calendar days to comfortably cover n_days of *trading* days
     # (weekends/holidays), then trim to the most recent n_days.
     lookback_days = int(n_days * 1.6) + 10
@@ -78,7 +61,7 @@ def get_tbill_yield(maturity: str = "3mo") -> float:
     wired up here since that's what the script currently uses; extend
     the ticker map below if you want 1mo/6mo/1yr etc.
     """
-    ticker_map = {"3mo": "^IRX"}  # 13-week Treasury Bill rate, quoted in %
+    ticker_map = {"3mo": "^IRX"}  
     if maturity not in ticker_map:
         raise ValueError(f"Unsupported maturity '{maturity}'. Options: {list(ticker_map)}")
 
@@ -88,7 +71,7 @@ def get_tbill_yield(maturity: str = "3mo") -> float:
     if hist.empty:
         raise RuntimeError(f"yfinance returned no data for {symbol}.")
 
-    latest_pct = hist["Close"].dropna().iloc[-1]  # e.g. 3.86 meaning 3.86%
+    latest_pct = hist["Close"].dropna().iloc[-1]  # here, 8.88 means 8.88%
     return float(latest_pct) / 100.0
 
 
